@@ -67,7 +67,7 @@
 ##### Reinforcement Learning View
 - 실제로 emulator가 어떻게 돌아가는지는 모르지만, Observation (화면) 과 Reward (점수)를 가지고 나의 action을 결정함
 
-###### Planning View
+##### Planning View
 - Game의 Rule이 알려져있는 경우, 이 경우에는 simulator를 이용하여 tree search 등을 이용하여 action을 plan할 수 있음
 
 #### Exploration & Exploitation
@@ -143,6 +143,8 @@ $$ q_{\pi}(s,a) = E_{\pi}[R_{t+1}+\gamma q_\pi (S_{t+1}, A_{t+1})|S_t = s] $$
 $$ v_\pi = R^\pi + \gamma P^\pi v_\pi, so$$
 $$ v_\pi = (I-\gamma P^\pi)^{-1} R^\pi$$
 이와 같은 식으로 풀어줄 수 있음.
+	- 이때 $$$P^\pi_{ss'} = \sum_{a \in A} \pi(a|s)P^a_{ss'} $$$ (원래 state transition function에 policy의 분포를 고려해서 만든 이동 분포)
+	- 또 $$$ R^\pi_s = \sum_{a \in A} \pi(a|s)R_s^a $$$ (policy의 이동 분포를 고려한 현 state의 reward expectation) 
 
 ##### Optimal Value Function
 - optimal state-value function $$$v_*(s)$$$ : 현재 state s에서 value function의 값을 maximize하는 policy $$$ {max}_\pi \: v_\pi(s) $$$
@@ -166,3 +168,79 @@ $$ \pi \ge \pi' \quad if \quad v_\pi(s) \ge v_{\pi'}(s) \; for \; \forall s $$
 - infinite / continuous MDPs
 - partially observable MDPs
 - undiscounted, average reward MDPs
+
+## Chapter 3 : Planning by Dynamic Programming
+- Dynamic Programming이라고 말하고 있기는 하지만 내 입장에서는 그냥 matrix(vector) 이용해서 iteratively converge하는 algorithm이라고 생각하는게 편할거 같음 (실제로 그렇고)
+
+### Policy Evaluation
+- Given MDP와 given policy $$$\pi$$$에 대해 Bellman Expectation을 계산해서 value function $$$v_\pi$$$를 계산하는 것
+- $$$ v^{k+1} = R^\pi + \gamma P^\pi v^{k} $$$ 를 반복
+	- 모든 state에 대해 한 step에 다 신경써줘서 이를 'synchronous'라고 부름
+- grid world 예시를 보면, uniform random policy로 value function을 구하고, 이 value function 값으로 greedy하게 policy를 새로 만든다고 생각하면 (주변 중 argmax v(s)로 간다고 생각하면) optimal policy가 나옴
+	 - any value function can be used to compute better value function
+	 - policy iteration의 근간이 되는 아이디어
+
+### Policy Iteration
+- given policy $$$\pi$$$에 대해, policy evaluation을 이용해서 evaluate를 한 뒤 그 value function값을 이용한 greedy policy를 새로운 policy로 차용한다
+	- 여기서의 policy는 deterministic한 policy (모든 MDP는 deterministic한 optimal policy를 가지므로 deterministic한 policy만 봐도 충분)
+	- EM Algorithm과 비슷하게 느껴질 수 있지만, 완전한 EM Algorithm은 아님. 그러나 어느 정도의 연관관계는 있음.
+- 항상 $$$\pi$$$가 $$$\pi_*$$$로 수렴함이 알려져있음
+	- V도 V*로 가고, policy도 best policy로 가면서 점점 수렴
+- Formal한 Policy Improvement 방법
+	1. deterministic policy $$$\pi$$$가 있다
+	2. new policy $$$ \pi'(s) = {argmax}_{a \in A} q_\pi(s,a) $$$
+- Policy Iteration의 올바른 수렴성 확인
+	1. policy iteration의 한 step은 모든 state의 value를 improve 함
+		- $$$ q_\pi(s, \pi'(s)) = {max}_{a \in A} q_\pi(s,a) \ge q_\pi (s, \pi(s)) = v_\pi(s) $$$
+	2. 1에 의해 한 step에서 value function도 반드시 증가함
+		- $$$ v_\pi(s) \le q_\pi(s, \pi'(s)) = E_{\pi'}[R_{t+1}+\gamma v_\pi(S_{t+1})|S_t = s]$$$
+		$$$ \le  E_{\pi'}[R_{t+1}+\gamma q_\pi(S_{t+1}, \pi'(S_{t+1}))|S_t = s] \quad via \: 1$$$
+        $$$ \le  E_{\pi'}[R_{t+1}+\gamma R_{t+2} + \gamma^2 q_\pi(S_{t+2}, \pi'(S_{t+2}))|S_t = s] ...$$$
+        $$$ \le  E_{\pi'}[R_{t+1}+\gamma R_{t+2} +\gamma^2 R_{t+3} + ...|S_t = s] = v_{\pi'}(s)$$$
+    3. Improve가 멈추는 (수렴하는) 상황일 경우, 모든 state에 대해 max action이 골라진 상태이다. 즉 현재 policy는 bellman optimality equation을 만족하고, 결국 수렴을 통해 찾은 $$$\pi$$$는 optimal policy이다.
+
+#### Modified Policy Iteration
+- Stop early (value function 변화량이 일정 threshold 이하이면)
+- 정해진 step 수만 진행 (ex : 3 step..)
+- k = 1만 보고 stop하는 건? -> value iteration과 equivalent한 방법임
+
+### Value Iteration
+- optimal policy를 'optimal first action / successor state로부터의 optimal policy' 로 breakdown 한다
+- ** Principle of Optimality ** : policy $$$\pi(a|s)$$$ is optimal iff s에서 갈 수 있는 모든 state s'에 대해 $$$v_\pi(s') = v_*(s') $$$
+- 이런 관점에서 생각할 경우 $$$ v_*(s) <- {max}_a R_s^a + \gamma \sum P^a_{ss'} v_*(s') $$$ 로 쓸 수 있음. (Bellman Expectation Equation) 이걸 iterative하게 반복함으로서 value iteration을 행한다.
+- Formal Algorithm
+	- synchronous하게, 위의 식을 이용하여 $$$v^k(s)$$$를 통해 $$$v^{k+1}(s)$$$를 구하는 것을 반복한다.
+		- 행렬로 나타내면, $$$v_{k+1} = {max}_{a \in A} R^a + \gamma P^a v_k $$$ where R^a, P^a is reward vector / transition matrix about particular action a
+	- 반드시 optimal value $$$v_*$$$로 수렴한다
+	- policy iteration과 다른 점은, value만 구하기 때문에 explicit한 policy가 나오는 것은 아님. 또한, 수렴 중간에 나오는 intermediate value function이 any policy에도 대응되지 않을 수 있음.
+	- policy iteration에서 value만 계속 업데이트 하고, 마지막에 k=1로 policy를 바꾸는 것과 equivalent함.
+
+### Synchronous DP Algorithms : sum
+- state-value function에 대해 DP를 하면 O(mn^2) per iteration이지만 (m=number of actions, n=number of states), action-value function에 대해 DP를 하면 O(m^2 n^2) per iteration이다
+	- state-value에 대해 DP를 하는 이유
+
+### Extension : Asynchronous DP Algorithms
+- 반드시 한 iteration에 모든 state를 update하는 것이 아니라, 일부 state에 대해서만 update를 하는 것.
+	- reduce computation
+- 모든 state가 전부 선택된다는 보장만 있으면, 역시 $$$v_*$$$로 수렴함
+
+#### In-place value iteration
+- 원래 value iteration은 old와 new vector를 따로 고려했지만, in-place value iteration에서는 vector를 하나만 두고 그 vector 안에서 update 하는 것을 반복한다
+- 이렇게 방법을 사용할 경우 행렬로 업데이트 하면 안되고, for문을 이용해서 state별로 하나하나 update해야 할 것
+
+#### Prioritised Sweeping
+- 어떤 state부터 update 해야할 지, 어떤 순서로 state update를 해야할지에 대한 접근
+- 'Bellman Error' (한번 v(s)를 update 했을 때 값이 변하는 정도의 절대값) 가 큰 state부터 접근한다
+- 한 state를 update했을 경우, 그 state와 연관된 다른 state들의 Bellman Error를 update 해준다. Predecessor state에 대한 정보를 알고, Priority Queue를 이용하면 이러한 방식을 구현할 수 있다.
+
+#### Real-time Dynamic Programming
+- 실제로 agent가 방문하는 state에 대해서 update
+
+#### Sample Backups
+- Full-width backups : DP 방식의 접근은 모든 successor state, action, MDP transition, reward function에 대한 정보를 알고 있어야 한다. 문제가 커지면 제대로 해결하지 못할 수 있음.
+- Further lecture에서는 실제로 경험해본 결과를 토대로 'sampling' 하면서 update 하는 방법에 대해 말할 것
+	- full model에 대해 알 필요가 없으므로, real-world problem solve에 더 적합함 : lead to 'Model-free Prediction'
+	- curse of dimensionality도 줄일 수 있음
+
+### Contraction Mapping
+- value iteration, policy evaluation, policy iteration 등이 optimal solution에 converge하는지, solution이 unique한지, 얼마나 빨리 converge하는지 등을 'contraction mapping theorem'을 이용하여 알 수 있다.
