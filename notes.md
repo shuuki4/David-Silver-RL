@@ -244,3 +244,88 @@ $$ \pi \ge \pi' \quad if \quad v_\pi(s) \ge v_{\pi'}(s) \; for \; \forall s $$
 
 ### Contraction Mapping
 - value iteration, policy evaluation, policy iteration 등이 optimal solution에 converge하는지, solution이 unique한지, 얼마나 빨리 converge하는지 등을 'contraction mapping theorem'을 이용하여 알 수 있다.
+- TODO : slide 보고 update
+
+## Lecture 4 : Model-Free Prediction
+- MDP가 주어지지 않은 상황에서 MDP의 value function을 estimate 하는 방법
+	- 이 lecture에서는 policy evaluation에 focus
+	- 이 lecture에서 배운 core idea를 토대로 최적화 과정에 대해 배울 것
+
+### Monte-Carlo Learning
+- 'episode' 관점으로 경험을 해나가면서 학습을 한다.
+- 목표 : policy $$$\pi$$$를 따를 때, value function $$$v_\pi$$$를 예측한다
+- 이 때, reward function으로는 discounted score의 sum이 아니라 'empirical mean' 을 사용 (경험을 통해 얻은 점수의 평균)
+
+##### First-Visit MC Policy Evaluation
+- 한 episode에서 state s가 처음 방문되었을 경우에만
+	- counter N(s) <- N(s) + 1를 늘림
+	- total return S(s) <- S(s) + $$$G_t$$$ ($$$G_t$$$ : return, =  $$$ R_{t+1} + \gamma R_{t+2} + .... + \gamma ^{T-1} R_T $$$)
+	- value function은 mean으로 생각. V(s) = S(s)/N(s). 큰 수의 법칙에 의해 방문 수가 늘어나면 실제 값으로 수렴함.
+
+##### Every-Visit MC Policy Evaluation
+- first-visit과 똑같은 방법으로 하되, 처음 방문할 경우가 아니라 state s를 방문한 모든 경우에 대해 갱신을 해준다
+
+#### Incremental MC updates
+- mean $$$\mu_k = \mu_{k-1} + \frac{1}{k} (x_k - \mu_{k-1}) $$$ 로 생각 가능
+- sum을 생각할 필요 없이, incremental하게 MC를 update하는 것도 가능하다.
+	- 한 episode가 끝나면 그 episode에서 방문한 state들에 대해 다음과 같은 update를 함
+		- $$$ N(S_t) = N(S_t) + 1 $$$
+		- $$$ V(S_t) = V(S_t) + \frac{1}{N(S_t)}(G_t - V(S_t)) $$$
+- 문제가 non-stationary 할 경우 (시간에 따라 바뀌는 것이 있을 경우) 완전한 mean을 계산하는 대신 old episode를 까먹는 것이 좋을 수도 있다. 이럴 때는 1/N(St)을 이용하여 완전한 평균을 계산하는 대신 지수평균 적으로 계산함.
+	- $$$ V(S_t) = V(S_t) + \alpha (G_t - V(S_t)) $$$
+
+### TD-Learning (Temporal Difference)
+- TD Learning에서는 episode가 끝날 필요가 없음 : bootstrapping
+	- 다음에 일어날 행동을 예측하는 방식
+- TD(0)
+	- return을 'estimate' 한다 : $$$R_{t+1} + \gamma V(S_{t+1}) $$$
+	- Monte-Carlo의 real return 대신 estimated return을 사용.
+		- $$$ V(S_t) = V(S_t) + \alpha(R_{t+1} + \gamma V(S_{t+1}) - V(S_t))$$$
+		- 이 때 $$$R_{t+1} + \gamma V(S_{t+1})$$$를 TD-target, $$$\delta_t = R_{t+1} + \gamma V(S_{t+1}) - V(S_t) $$$를 TD error라고 함
+- Monte-carlo와는 다르게, 어떤 일련의 과정이 끝나기 전에 즉각즉각 value function의 update를 할 수 있음. 또한 episode가 완전히 끝날 필요도 없음.
+- 예를 들어 하나의 episode의 좋은과정과 나쁜 과정이 섞여있었고 결과적으로 나쁜 결과가 나왔을 경우, MC를 사용하면 모든 action들이 negative feedback을 받지만 TD를 사용할 경우 각각의 action이 다른 feedback을 받을 수 있음.
+
+##### Bias / Variance
+- true return이나 true TD target과는 달리, TD target $$$ R_{t+1} + \gamma V(S_{t+1}) $$$는 *biased estimate* 임. 내가 임의로 생각하는 V가 어느쪽으로 초기화되있을지도 모르고, 임의의 가정으로 생각하기 때문.
+- 반면 TD target은 return보다 *lower variance* 임. return은 여러 개의 action / transition / reward에 의존하는 반면, TD target은 하나의 결과에만 의존하기 때문.
+- Monte Carlo : High variance, zero bias, good convergence
+- TD : Low variance, some bias, usually efficient than MC, but more sensitive to initial value
+	- TD(0)은 $$$v_\pi(s)$$$로 수렴함. 그러나 function approximation을 하면 그렇지 않은 specific case들도 있음.
+
+### MC and TD
+- Monte Carlo는 minimum mean-squared error를 만드는 쪽으로 수렴 (all episode, all timestep에 대한 square error sum)
+- 반면 TD(0)은 maximum likelihood Markov model로 수렴함. Data를 보고, data에 가장 fit되는 MDP의 solution으로 수렴함. (state 하나만 보고 다음 action을 예측하기 때문일 것)
+- 따라서 TD는 Markov property를 사용한다. (모든 궤적을 보지 않고 전 state만 보기 때문) 즉, markov property가 성립하는 환경에서는 TD가 더 efficient하다. 반면, MC는 markov property를 사용하지 않지만 그렇기에 non-markov environment라면 MC가 efficient하다.
+
+#### United View of RL
+- Boostrapping과 sampling의 관점에서 다음과 같이 바라볼 수 있음.
+	- boostrapping + sampling = TD learning
+	- boostrapping + not sampling = DP
+	- not boostrapping + sampling = Monte Carlo
+	- not boostrapping + not sampling = Exhaustive Search
+
+### TD($$$\lambda$$$)
+- TD가 1 step만 보는게 아니라, n-step을 본 뒤 그 결과들로 현재 state의 value function을 update한다고 해보자.
+- n-step reward를 $$$G_t^{(n)} = R_{t+1} + \gamma R_{t+2} + .. + \gamma^{n-1} R_{t+n} + \gamma^n V(S_{t+n}) $$$ 이라고 하자. 그러면 n-step TD는 $$$V(S_t) = V(S_t) + \alpha (G_t^{(n)}-V(S_t)) $$$ 이다.
+- 이 때 n을 하나만 정해서 해당 n-step reward만 보는 것이 아니라, 여러 n-step reward를 보고 평균을 내자는 것이 TD(lambda)의 목표.
+- TD($$$\lambda$$$)
+	- $$$G_t^\lambda  = (1-\lambda) \sum_{n=1}^{\inf} \lambda^{n-1} G_t^{(n)}$$$
+	- $$$G_t^\lambda$$$는 n-step reward들의 geometric average. weight들을 다 합치면 1이 됨.
+	- update 식은 $$$ V(S_t) = V(S_t) + \alpha (G_t^\lambda - V(S_t)) $$$
+	- 이 때 geometric weight를 사용하는 이유는, geometric weight를 사용하면 memoryless하게 계산할 수 있기 때문.
+
+#### Backward-view TD($$$\lambda$$$)
+- Eligibility Trace : state의 frequency와 recency를 모두 고려한 값
+	- $$$E_0(s) = 0, \quad E_t(s) = \gamma \lambda E_{t-1}(s) + 1(S_t = s) $$$
+- V(s)를 업데이트 할 때, TD-error와 eligibility trace값을 둘다 이용하여 업데이트한다
+	- $$$\delta_t = R_{t+1} + \gamma V(S_{t+1}) - V(S_t) $$$
+	- $$$ V(s) = V(s) + \alpha \delta_t E_t(s) $$$
+- final reward를 이용해서 error를 구하고, 그 error가 backpropagate 되는 느낌?
+- Theorem : episodic & offline case 에서, TD-lambda의 forward-view와 backward view는 equivalent하다.
+	- online update의 경우 forward와 backward가 다르지만, eligibility trace 식을 조금 바꿈으로서 equivalence를 만들 수 있다 (Sutton and von Seijen, ICML 2014)
+	- forward 방식을 생각할 경우 직접 n-step reward들을 계산해야하고 모든 계산이 끝날때 까지 기다려야함. 반면 backward 방식으로 생각하면 단순히 step마다 trace update를 해가면서 쉽게 값을 갱신할 수 있다. 즉 backward 방식으로 편하게 구현해도 forward와 동일한 효과를 볼 수 있으므로 이득
+- lambda가 0일때는 TD(0)과 같고, lambda가 1일때는 monte-carlo와 같다. (효과만 같은 것이지, 실제로는 MC에 비해 benefit이 있음) 즉, TD-lambda는 TD와 MC의 benefit을 둘 다 누리기 위한 방법이다.
+
+### Equivalence of Forward & Backward
+- Mathematical Proof
+- TODO : 슬라이드 보고 update
