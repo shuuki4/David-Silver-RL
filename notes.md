@@ -329,3 +329,119 @@ $$ \pi \ge \pi' \quad if \quad v_\pi(s) \ge v_{\pi'}(s) \; for \; \forall s $$
 ### Equivalence of Forward & Backward
 - Mathematical Proof
 - TODO : 슬라이드 보고 update
+
+## Lecture 5 : Model-Free Control
+- How to optimise value function of unknown MDP?
+
+### On-policy & Off-policy
+- On-policy : policy $$$\pi$$$에 대한 정보를, $$$\pi$$$를 따라서 경험해보면서 얻는 방법
+- Off-policy : 다른 behavior를 보면서 policy $$$\pi$$$에 대해 학습하는 방법
+
+### Generalized Policy Iteration
+- Policy evaluation과 improvement를 반복하면서 좋은 해로의 수렴을 기대할 수 있을것
+- policy evaluation을 MC로 하고, improvement를 greedy policy improvement를 통해 한다고 생각해보자.
+	- 그러나 state-value function을 사용할 경우 greedy policy improvement를 할 때 MDP에 대한 정보가 있어야함 (P 및 이동가능한 상태..)
+	- 반면 action-value function을 사용하면 greedy policy improvement 할 수 있음 (단순히 $$$\pi'(s) = {argmax}_a Q(s,a) $$$)
+- 이제 Q를 MC를 통해서 알고, greedy policy improvement를 한다고 생각해보자. 그러나 이 방법도 문제점이 있는 것이, MC에서 샘플링을 하면서 모든 (s,a) pair를 볼 수 있는 것이 아니기 때문에 보지 못한 pair에 대한 평가는 하지 못한다는 단점이 있다.
+
+#### $$$\epsilon$$$-Greedy exploration
+- simple idea : epsilon의 확률로는 random하게 action을 고르고, 1-epsilon의 확률로는 greedy action을 고른다.
+- Theorem : epsilon-greedy를 통해 고른 policy는 **항상 improvement가 있다**
+	$$ q_\pi(s, \pi'(s)) = \sum_a \pi'(a|s)q_\pi(s,a)$$
+    $$ = \frac{\epsilon}{m} \sum_a q_\pi(s,a) + (1-\epsilon) {max}_a q_\pi(s,a)$$
+    $$ \ge \frac{\epsilon}{m} \sum_a q_\pi(s,a) + (1-\epsilon) \sum_a \frac{\pi(a|s)-\epsilon/m}{1-\epsilon} q_\pi(s,a) $$
+    <center> (by definition of $$$ \pi(a|s) $$$ in epsilon-greedy) </center>
+    $$ = \sum_a \pi(a|s)q_\pi(s,a) = v_\pi(s)$$
+
+### Monte-Carlo control
+- Lecture 3에서 보았듯이, Policy iteration을 할 때, 꼭 policy evaluation을 끝까지 해서 완전한 답을 알 필요는 없다
+- 따라서, 한 episode를 진행할 때마다 evaluation (MC policy evaluation),  improvement (epsilon-greedy)를 반복한다.
+
+#### GLIE (Greedy in the Limit with Infinite Exploration)
+- GLIE는 다음과 같은 상황을 말한다
+	- episode를 무한정 늘리면 모든 state, action을 무한정 방문한다
+	- episode를 무한정 늘리면 policy가 greedy policy로 converge 한다
+- ex) $$$\epsilon$$$-greedy를 사용할 때, $$$\epsilon_k = \frac{1}{k} $$$로 잡으면 GLIE 성질을 만족함
+- GLIE Monte-Carlo Control
+	- kth episode를 $$$\pi$$$를 이용해 sample
+	- episode가 끝나면 state, action pair의 value function을 update
+		- $$$ N(S_t, A_t) = N(S_t, A_t) + 1 $$$
+		- $$$ Q(S_t, A_t) = Q(S_t, A_t) + \frac{1}{N(S_t, A_t)} (G_t - Q(S_t, A_t)) $$$
+	- 그 후 policy를 갱신함
+		- $$$ \epsilon = 1/k $$$
+		- $$$ \pi = \epsilon-greedy(Q) $$$
+	- 이 알고리즘은 optimal action-value function $$$q_*(s,a)$$$로 수렴한다.
+
+### TD using : SARSA
+- 처음 state S와 action A를 통해, reward R를 받고 새로운 state S'로 간다. 그 뒤, S'에서 할 수 있는 새로운 action A'에 대해 다음과 같이 Q를 update 한다.
+	$$$ Q(S,A) = Q(S,A) + \alpha (R + \gamma Q(S', A') - Q(S,A)) $$$
+- MC와는 달리 매 timestep마다 policy의 업데이트가 이루어짐.
+- On-policy Control with Sarsa의 Psuedocode
+	- Q를 랜덤하게 초기화한다. 단, Q(terminal state, :)는 0으로 초기화 한다.
+	- Repeat :
+		1. S를 초기화 (맨 처음 S)
+		2. Q에 대해 epsilon-greedy등을 해서 policy $$$\pi$$$를 만든다. 이 policy로 취할 action A를 결정한다.
+		3. repeat for each step in episode :
+			 (1) A를 행하고, R과 S'를 observe함
+             (2) 현재 Q를 통해 새로운 policy를 만들고, S'에서 이 policy를 통해 A'를 만듬
+             (3) $$$ Q(S,A) = Q(S,A) + \alpha (R + \gamma Q(S', A') - Q(S,A)) $$$
+             (4) S를 S'로, A를 A'로 이동
+        until terminate
+- 실제로 optimal로 converge 하기 위해서는 다음과 같은 조건들이 필요하다
+	- GLIE여야 함
+	- $$$ \sum_t a_t = \inf, \; \sum_t a_t^2 < \inf $$$
+	- 물론 실제 구현할 때는 이 조건들 만족 안해도 웬만하면 돌아감
+
+#### n-step sarsa (sarsa($$$\lambda$$$))
+- TD-lambda와 마찬가지로, Q_t를 n-step return으로 생각하는 것
+- Forward View로 생각하는 것은 TD-lambda와 같음. geometric weight.
+- backward view도 TD-lambda와 유사하다. eligibility를 통해 쉽게 업데이트 하면서 forward view와 같은 효과를 볼 수 있다. 반면, eligibility trace를 state, action pair에 대해 하나씩 놓고 update한다.
+	- $$$ E_0(s, a) = 0 $$$
+	- $$$ E_t(s, a) = \gamma \lambda E_{t-1}(s,a) + 1(S_t = s, A_t = a) $$$
+- Q는 다음과 같이 update 한다. 이 때, every state s, every action a (그 episode에서 방문한 s, a pair만 해도 상관없다) 에 대해 update 한다.
+	 - $$$ \delta_t = R_{t+1} +\gamma Q(S_{t+1}, A_{t+1}) - Q(S_t, A_t) $$$
+	 - $$$ Q(s,a) = Q(s,a) + \alpha \delta_t E_t(s,a) $$$
+
+### Off-policy Learning
+- off-policy learning을 사용하면 human experience 등을 참고할 수 있고, old policy에서의 경험을 재활용할 수 있음
+
+#### Importance Sampling
+- $$$ E_{X \sim P}[f(X)] = E_{X \sim Q}[\frac{P(X)}{Q(X)}f(X)] $$$
+	- 다른 distribution에서 나온 function을 보정하는 방법
+- Importance Sampling for Off-policy monte carlo
+	- $$$\mu$$$에서 나온 result를 통해 $$$\pi$$$를 evaluate한다
+	- 그러나 실제로는 episode의 모든 step에 의존하기 떄문에, 너무 high variance이기 때문에 useless.
+- Importance Sampling for Off-Policy TD
+	- importance sampling을 이용해서 TD target을 sample한다
+	- 지금까지의 경험을 토대로 만든 policy $$$\mu$$$를 가지고, 내가 evaluate 하려는 policy $$$\pi$$$가 얼마나 비슷한 방향으로 가는지를 보정해주는 느낌
+	- $$$ V(S_t) = V(S_t) + \alpha ( {\frac{\pi(A_t|S_t)} {\mu(A_t|S_t)}} (R_{t+1}+\gamma V(S_{t+1}))-V(S_t)) $$$
+
+### Q-Learning
+- Next Action은 $$$\mu$$$를 이용해서 고르되, alternative successor action A'는 현재 policy $$$\pi$$$를 이용해서 고른다.
+	- sarsa update를 다음과 같이 바꾼다 : $$$ Q(S_t, A_t) = Q(S_t, A_t) + \alpha (R_{t+1} + \gamma Q(S_{t+1}, A') - Q(S_t, A_t)) $$$
+- behavior과 target policy가 모두 improve 할 수 있다고 해보자.
+	- Target policy가 아예 greedy일 경우를 상정.
+	- 이 경우 $$$ R_{t+1} + \gamma Q(S_{t+1}, A') $$$를 $$$ R_{t+1} + {max}_{a'} \gamma Q(S_{t+1}, a') $$$ 로 바꿀 수가 있다.
+
+#### Q-learning control algorithm (SARSAMAX)
+- Sarsa처럼 S, A에서 reward R를 받고 다음 state S'로 이동한 상황이다. 다음 action은 A'라고 denote하자.
+- $$$ Q(S,A) <- Q(S,A) + \alpha (R + \gamma {max}_{a'} Q(S', a') - Q(S,A) ) $$$ 로 업데이트
+	- 일단 한 step을 간 후, 그 곳에서 갈 수 있는 가장 좋은 곳을 택한다고 생각하고 update 하는 느낌.
+	- 이 식을 따르면 optimal $$$q_*$$$로 수렴한다는 것이 알려져 있음.
+
+##### pseudocode
+- initialize Q : randomly, but Q(terminal, :) = 0
+- repeat for each episode :
+    1. set S to first state
+    2. repeat for each step (until terminate) :
+        - choose A by policy from Q (epsilon-greedy)
+        - take action A, observe R & S'
+        - $$$ Q(S,A) <- Q(S,A) + \alpha (R + \gamma {max}_{a'} Q(S', a') - Q(S,A) ) $$$
+        - S to S'
+
+### Relationship between DP and TD
+|                                    | DP                | TD          |
+|:----------------------------------:|-------------------|-------------|
+| Bellman Expectation Equation for v | policy evaluation | TD learning |
+| Bellman Expectation Equation for q | policy iteration  | SARSA       |
+| Bellman Optimality Equation for q* | value iteration   | Q-learning  |
