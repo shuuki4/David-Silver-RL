@@ -20,7 +20,7 @@
 
 ###### Information State (Markov State)
 - all useful information from the history
-- state $$$S_t$$$가 Markov라는 것은 P[S_{t+1}|S_t] = P[S_{t+1}|S_1, S_2, ..., S_t] 라는 것
+- state $$$S_t$$$가 Markov라는 것은 $$$P[S_{t+1}|S_t] = P[S_{t+1}|S_1, S_2, ..., S_t]$$$ 라는 것
 	- 현재 State $$$S_t$$$만 알고 있으면, 현재까지 쌓아온 History는 필요 없다는 것
 	- environment state $$$S_t^e$$$ 는 정의에 의해 markov임. History H도 정의에 의해 markov임.
 
@@ -445,3 +445,82 @@ $$ \pi \ge \pi' \quad if \quad v_\pi(s) \ge v_{\pi'}(s) \; for \; \forall s $$
 | Bellman Expectation Equation for v | policy evaluation | TD learning |
 | Bellman Expectation Equation for q | policy iteration  | SARSA       |
 | Bellman Optimality Equation for q* | value iteration   | Q-learning  |
+
+## Lecture 6 : Value Function Approximation
+- 지금까지 배운 기법은 모든 state와 action에 대해 value를 저장할 수 있다는 생각 하에 진행해왔음 (Q-learning의 table 등). 그러나 state의 수가 매우 크거나, continuous한 경우 이러한 접근법은 사용 불가능하다.
+	- value function v와 q를 approximate할 수 있는 함수를 만들어서 사용한다. 이때, 함수에서 사용하는 weight는 MC나 TD learning을 이용하여 갱신한다.
+	- (이 수업에서) function approximator로 주로 사용하는 것은 linear combination이나 neural network (which is differentiable)
+	- plus, supervised learning과는 다르게 non-stationary하고, non-iid한 (sequence들이 계속 들어오므로) 데이터에 대한 훈련방법이 필요함
+
+### Incremental Methods
+- J(w)를 mean-squared error로 잡고 stochastic gradient descent
+	- $$$ \Delta_w = \alpha (v_\pi(S) - \hat{v}(S, w))\nabla_w \hat{v}(S, w) $$$
+- state를 feature vector로 나타낸다고 생각하자.
+- linear combination으로 나타냈을 때, $$$ \Delta_w $$$를 간단히 계산할 수 있음
+	- 위의 식에서 Graident 부분을 단순히 $$$x(S)$$$ (feature vector)로 바꾸면 됨
+	- 전 lecture까지 생각했던 table lookup은 linear combination의 special case라고 생각할 수 있음 (feature vector를 state의 one-hot vector라고 생각하면)
+
+#### Incremental Prediction Algorithms
+- gradient descent를 하기 위해서는 real value function의 값이 필요한데, 우리는 이 값을 알지 못한다.
+- 따라서 target $$$v_\pi(s)$$$ 를 다른 target으로 바꾼다
+	- MC의 경우 return $$$G_t$$$
+	- TD(0)의 경우 TD target $$$R_{t+1} + \gamma \hat{v}(S_{t+1}, w) $$$
+	- TD($$$\lambda$$$)의 경우 $$$G_t^\lambda$$$
+- MC의 경우, 경험을 통해 얻은 state-return 쌍들을 supervised learning의 training set처럼 사용할 수 있다
+- TD의 경우, TD-target은 biased-sample이긴 하지만 여전히 state-TD target 쌍들을 training set처럼 사용할 수 있다. 이렇게 해도 여전히 optimal에 가깝게 수렴함.
+- TD-lambda의 경우, forward-view의 경우의 식은 명백하지만 backward는 자명하지 않음
+	- function approx.를 사용할 경우 eligibility trace $$$E_t = \gamma \lambda E_{t-1} + x(S_t) $$$로 놓고 $$$ \Delta_w = \alpha \delta_t E_t $$$로 놓는다.
+
+#### Control with Approximation
+- Evaluation은 approximation으로 하고, improvement는 epsilon-greedy로
+- control 하기 위해서는 action-value function q가 필요함. q도 v와 마찬가지의 방법으로 SGD를 할 수 있다.
+- q의 경우,
+	 - MC는 target $$$G_t$$$로 바꿈
+	 - TD(0)은 TD target $$$R_{t+1} + \gamma Q(S_{t+1}, A_{t+1}) $$$로 바꿈
+	 - TD-lambda의 backward의 경우, eligibility trace $$$E_t = \gamma \lambda E_{t-1} + \nabla_w \hat{q} (S_t, A_t, w) $$$로 놓음
+- lambda : 1일 경우 (MC에 가까울 경우) 보통 결과가 좋지 않음. 적당한 lambda를 찾는 것이 좋다.
+
+#### Baird's Counterexample & Algorithm Convergence
+- simple MDP이지만, TD를 사용했을때 diverge하는 반례
+- Evaluation Algorithm의 convergence
+    - On-policy일 경우
+        - linear combination이면 MC, TD0, TD-lam 다 converge 하지만 non-linear function approximation을 사용할 경우 TD-0과 TD-lambda는 diverge할 수 있다.
+    - Off-policy일 경우
+        - MC는 모든 경우에 대해 converge하지만, TD-0과 TD-lambda는 linear combination을 쓰더라도 diverge할 수 있다.
+    - ** Gradient TD** 라고 해서, 어느 경우에도 bellman error의 true gradient를 따르는 TD learning이 있음
+- Control의 경우,
+	- non-linear이면 어느 경우에도 수렴의 보장이 없음
+	- linear의 경우, MC control과 SARSA는 near optimal로 수렴하지만, optimal 근처에서 맴돔. Q-learning은 수렴의 보장성 없음
+	- **Gradient Q-learning**이라고 해서, linear combination의 경우 반드시 수렴한다고 보장할 수 있는 알고리즘이 있다
+
+### Batch RL
+- 여러 (state, value) pair를 가지고 sum of square error를 loss로 해서 gradient descent를 한다
+- Experience Replay를 이용한 SGD
+	- experience D를 쌓아놓고, 다음을 반복
+		 - D에서 (sample, value)쌍을 하나 sample한다
+		 - 그 이후 이 쌍을 이용하여 SGD update
+    - 이를 반복하면 least square를 만족하는 w로 수렴함
+
+#### DQN's Algorithm
+- epsilon-greedy policy를 이용하여 action $$$a_t$$$를 정한다
+- $$$(s_t, a_t, r_{t+1}, s_{t+1}) $$$을 experience D에 저장한다
+- D에서 mini-batch를 sample한다
+- old weight를 이용해 q-learning target을 계산하고, SSE를 minimize하도록 SGD 한다
+	- loss : $$$E[(r + \gamma \;{max}_{a'} Q(s', a'; w^{old})-Q(s, a; w))^2] $$$
+	- SGD의 variant를 이용
+- DQN이 stabilize 될 수 있었던 이유는 다음 두가지임
+	1. experience replay : highly correlated 된 연속된 경험들을 보는 대신, 순서를 randomize하여 안정화
+	2. fixed Q-targets : Network의 weight을 원래 방식처럼 update하는 것이 아니라, 원래 weight을 'freeze' 시키고 새로운 weight을 학습하는 방식을 사용했다. 이렇게 fixed된 오래된 weight를 사용함으로서 stabilize가 됨 (TD learning의 단점이 계속 bootstrap하면서 biased 된 결과를 얻을 수 있다는 것이므로?)
+		 - old weight은 몇 step의 update 후 다시 바꾸는 형식으로
+- 이 때 neural network는 last 4 frame을 stack 한 단순 CNN.
+
+#### Linear Least Squares Prediction
+- weight w를 이용하는 Least Square LS(w)에 대해, 우리의 minimum에서의 delta w의 expected update를 0임
+- 이 식을 이용하면 그 시점에서의 w를 정확하게 알 수 있음 (normal equation처럼 생각해서)
+	- $$$ w = (\sum_t x(s_t)x(s_t)^T)^{-1} \sum_t x(s_t)v_t^\pi $$$
+- Least Square MC / TD / TD-lambda 다 동일한 방식을 이용해서 direct solution을 얻을 수 있음
+	- incremental algorithm보다 better convergence property를 가짐
+
+##### Least Squares Policy Iteration
+- 위 LS algorithm들을 이용한 control 알고리즘
+- policy evaluation은 LS Q-learning, improvement는 epsilon-greedy 이용
